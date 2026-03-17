@@ -1,11 +1,11 @@
-# Video Animator AI
+# ZuviScribe
 
-Turn any video on the internet into a cinematic, documentary-style narrated film — with AI-generated video, narration, background music, and LaTeX transcripts.
+Turn any video on the internet into a cinematic, documentary-style narrated film with AI-generated video, narration, background music, and LaTeX transcripts.
 
 ## Architecture
 
 ```
-YouTube URL
+Video URL
     │
     ▼
 ┌──────────┐  ┌────────────┐  ┌───────────────────┐  ┌──────────────────┐
@@ -38,8 +38,8 @@ YouTube URL
 
 ### Modes
 
-- **`--animate`** — Full documentary pipeline (default)
-- **`--transcribe`** — Download + transcribe + export plain text transcript
+- **`--animate`**: Full documentary pipeline (default)
+- **`--transcribe`**: Download, transcribe, and export a plain text transcript
 
 ## Installation
 
@@ -101,18 +101,16 @@ output/
 
 ## Configuration
 
-Edit `config.yaml` to change models, voices, image settings, and more.
+All settings live in `config.yaml`. Edit it to change models, voices, image settings, and more.
 
 Key options:
-- `storyboard.model` — Ollama model for script writing (default: `gemma2:27b`)
-- `narration.voice` — edge-tts voice (default: `en-US-ChristopherNeural`)
-- `image_renderer.variants_per_scene` — Images per scene (default: 3)
-- `music.enabled` — Enable/disable AI background music
-- `music.volume` — Background music volume (default: 0.12)
+- `storyboard.model`: Ollama model for script writing (default: `gemma2:27b`)
+- `narration.voice`: edge-tts voice (default: `en-US-ChristopherNeural`)
+- `image_renderer.variants_per_scene`: Images per scene (default: 3)
+- `music.enabled`: Enable/disable AI background music
+- `music.volume`: Background music volume (default: 0.12)
 
-## Configuration
-
-All settings live in `config.yaml`. Key sections:
+Full section reference:
 
 | Section              | What it controls                                  |
 |----------------------|---------------------------------------------------|
@@ -139,7 +137,7 @@ pytest --cov=tools --cov=agents --cov-report=term-missing
 pytest tests/test_downloader.py -v
 ```
 
-All external services (yt-dlp, Whisper, Ollama, FFmpeg, YouTube API) are mocked in tests.
+All external services (yt-dlp, Whisper, Ollama, FFmpeg, video API) are mocked in tests.
 
 ## CI
 
@@ -153,7 +151,7 @@ The GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push / PR
 
 - **Automatic style transfer** – detect the original video's dominant style and generate a contrasting style prompt.
 - **Subtitle generation** – multi-language subtitles via Whisper + translation.
-- **FastAPI preview UI** – upload a YouTube link and watch the animated preview in-browser.
+- **FastAPI preview UI** – upload a video link and watch the animated preview in-browser.
 - **Batch processing** – animate multiple videos from a playlist.
 
 ## License

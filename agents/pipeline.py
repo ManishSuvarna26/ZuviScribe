@@ -44,7 +44,7 @@ def build_pipeline() -> list[PipelineStep]:
     return [
         PipelineStep(
             name="download",
-            description="Download YouTube video, extract audio & frames.",
+            description="Download video, extract audio & frames.",
             fn=download_video,
             required_keys=("url",),
             produced_keys=("title", "audio_path", "frame_paths", "metadata"),
@@ -106,7 +106,7 @@ def build_pipeline() -> list[PipelineStep]:
         ),
         PipelineStep(
             name="upload",
-            description="Upload the final video to YouTube.",
+            description="Upload the final video to the configured platform.",
             fn=upload_to_youtube,
             required_keys=("output_path",),
             produced_keys=("video_id", "video_url"),

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-run_documentary.py – Generate a documentary-style video from a YouTube video.
+run_documentary.py – Generate a documentary-style video from a video URL.
 
 Pipeline:
 

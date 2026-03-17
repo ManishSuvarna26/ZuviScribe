@@ -36,7 +36,7 @@ class TestUploader:
         mock_flow_cls.from_client_secrets_file.return_value = mock_flow
         mock_flow.run_local_server.return_value = MagicMock()
 
-        # Mock YouTube API
+        # Mock video API
         mock_yt = MagicMock()
         mock_build.return_value = mock_yt
         mock_insert = MagicMock()

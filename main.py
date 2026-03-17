@@ -194,7 +194,7 @@ def video_animate(
 @click.option("--transcribe", is_flag=True, help="Export transcript to text file.")
 @click.option("--config", "config_path", default="config.yaml", help="Path to config.yaml.")
 @click.option("--output", "output_dir", default="output", help="Output directory.")
-@click.option("--upload", is_flag=True, help="Upload the final video to YouTube.")
+@click.option("--upload", is_flag=True, help="Upload the final video to the configured platform.")
 @click.option("-v", "--verbose", is_flag=True, help="Enable DEBUG logging.")
 def cli(
     url: str,
@@ -205,9 +205,9 @@ def cli(
     upload: bool,
     verbose: bool,
 ) -> None:
-    """Turn a YouTube video into a creative animated rendition.
+    """Turn a video into a creative animated rendition.
 
-    URL is the YouTube video link to process.
+    URL is the video link to process.
 
     \b
     Examples:

@@ -1,7 +1,7 @@
 """
 tools.uploader
 ~~~~~~~~~~~~~~
-Upload the final video to YouTube (or other platforms) via the YouTube Data API v3.
+Upload the final video to a video platform via the Data API v3.
 
 Inputs
 ------
@@ -9,14 +9,14 @@ Inputs
 - title         : str        – Video title.
 - description   : str        – Video description.
 - tags          : list[str]  – Tags / keywords.
-- category_id   : str        – YouTube category ID (default "22" – People & Blogs).
+- category_id   : str        – Video category ID (default "22" – People & Blogs).
 - privacy       : str        – ``"private"``, ``"unlisted"``, or ``"public"``.
 - credentials   : str | Path – Path to ``client_secrets.json``.
 
 Outputs
 -------
 dict with keys:
-    video_id  : str  – YouTube video ID of the uploaded video.
+    video_id  : str  – Video ID of the uploaded video.
     url       : str  – Direct URL to the video.
 """
 
@@ -42,7 +42,7 @@ def upload_to_youtube(
     privacy: str = "private",
     credentials_file: str | Path = "client_secrets.json",
 ) -> dict[str, str]:
-    """Authenticate with YouTube and upload *video_path*.
+    """Authenticate and upload *video_path*.
 
     Uses OAuth 2.0 installed-app flow.  On first run a browser window will open
     for consent; the resulting token is cached locally.
@@ -63,7 +63,7 @@ def upload_to_youtube(
             "Download client_secrets.json from the Google Cloud Console."
         )
 
-    logger.info("Authenticating with YouTube …")
+    logger.info("Authenticating with the video platform ...")
     flow = InstalledAppFlow.from_client_secrets_file(
         str(credentials_file), scopes=[_YOUTUBE_UPLOAD_SCOPE]
     )
@@ -90,7 +90,7 @@ def upload_to_youtube(
 
     media = MediaFileUpload(str(video_path), mimetype="video/mp4", resumable=True)
 
-    logger.info("Uploading %s to YouTube …", video_path.name)
+    logger.info("Uploading %s to the video platform ...", video_path.name)
     request = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
 
     response = None
