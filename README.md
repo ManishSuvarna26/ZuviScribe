@@ -45,7 +45,7 @@ Video URL
 
 ```bash
 # Clone and set up
-cd video-animator-ai
+cd zuviscribe
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
