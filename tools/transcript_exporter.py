@@ -1,0 +1,362 @@
+"""
+tools.transcript_exporter
+~~~~~~~~~~~~~~~~~~~~~~~~~
+Export a Whisper transcript to LaTeX and compile to PDF.
+
+Produces a professionally formatted LaTeX document with:
+- Title page with video metadata
+- Timestamped transcript with paragraph breaks
+- Mathematical symbols preserved where detected
+- Clean typography via standard LaTeX article class
+
+Inputs
+------
+- transcript : dict  – From transcriber (full_text, segments, language).
+- title      : str   – Video title.
+- metadata   : dict  – Video metadata (duration, uploader, url).
+- output_dir : Path  – Where to save .tex and .pdf files.
+
+Outputs
+-------
+Path – Path to the generated PDF (or .tex if pdflatex unavailable).
+"""
+
+from __future__ import annotations
+
+import logging
+import re
+import shutil
+import subprocess
+from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
+
+
+def export_transcript_latex(
+    transcript: dict[str, Any],
+    title: str = "Video Transcript",
+    metadata: dict[str, Any] | None = None,
+    output_dir: str | Path = "output",
+) -> Path:
+    """Generate a LaTeX document and compile to PDF."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    metadata = metadata or {}
+
+    tex_path = output_dir / "transcript.tex"
+    pdf_path = output_dir / "transcript.pdf"
+
+    tex_content = _build_latex(transcript, title, metadata)
+    tex_path.write_text(tex_content, encoding="utf-8")
+    logger.info("LaTeX source written → %s", tex_path)
+
+    # Try to compile to PDF  prefer tectonic, fall back to pdflatex
+    tectonic = shutil.which("tectonic")
+    pdflatex = shutil.which("pdflatex")
+
+    if tectonic:
+        logger.info("Compiling LaTeX to PDF with tectonic …")
+        try:
+            subprocess.run(
+                [tectonic, "--outdir", str(output_dir), str(tex_path)],
+                check=True, capture_output=True, timeout=120,
+            )
+            logger.info("PDF generated → %s", pdf_path)
+            return pdf_path
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            logger.warning("tectonic failed (%s). Trying pdflatex …", exc)
+
+    if pdflatex:
+        logger.info("Compiling LaTeX to PDF with pdflatex …")
+        try:
+            for _ in range(2):
+                subprocess.run(
+                    [pdflatex, "-interaction=nonstopmode", "-output-directory",
+                     str(output_dir), str(tex_path)],
+                    check=True, capture_output=True, timeout=60,
+                )
+            logger.info("PDF generated → %s", pdf_path)
+            # Clean auxiliary files
+            for ext in [".aux", ".log", ".out"]:
+                aux = output_dir / f"transcript{ext}"
+                aux.unlink(missing_ok=True)
+            return pdf_path
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
+            logger.warning("pdflatex failed (%s). Returning .tex file instead.", exc)
+            return tex_path
+
+    logger.info("No LaTeX compiler found. Returning .tex file (install tectonic or MacTeX).")
+    return tex_path
+
+
+def export_transcript_text(
+    transcript: dict[str, Any],
+    title: str = "Video Transcript",
+    metadata: dict[str, Any] | None = None,
+    output_dir: str | Path = "output",
+) -> Path:
+    """Export transcript as a plain text (.txt) file with timestamps."""
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    metadata = metadata or {}
+    txt_path = output_dir / "transcript.txt"
+
+    lines: list[str] = []
+    lines.append(title)
+    lines.append("=" * len(title))
+    lines.append("")
+
+    # Metadata header
+    duration = metadata.get("duration", 0)
+    if duration:
+        mins, secs = divmod(int(duration), 60)
+        hrs, mins = divmod(mins, 60)
+        dur_str = f"{hrs}h {mins}m {secs}s" if hrs else f"{mins}m {secs}s"
+    else:
+        dur_str = "Unknown"
+    url = metadata.get("url", "")
+    uploader = metadata.get("uploader", "Unknown")
+    lines.append(f"Channel:  {uploader}")
+    lines.append(f"Duration: {dur_str}")
+    if url:
+        lines.append(f"Source:   {url}")
+    lines.append("")
+    lines.append("-" * 60)
+    lines.append("")
+
+    # Segments with timestamps
+    segments = transcript.get("segments", [])
+    if segments:
+        last_end = 0.0
+        for seg in segments:
+            start = seg.get("start", 0.0)
+            text = seg.get("text", "").strip()
+            if not text:
+                continue
+            if start - last_end > 3.0:
+                lines.append("")
+            ts = _format_timestamp(start)
+            lines.append(f"[{ts}] {text}")
+            last_end = seg.get("end", start + 1.0)
+    else:
+        lines.append(transcript.get("full_text", ""))
+
+    lines.append("")
+    lines.append("-" * 60)
+    lines.append("Generated by ZuviScribe")
+
+    txt_path.write_text("\n".join(lines), encoding="utf-8")
+    logger.info("Plain text transcript written → %s", txt_path)
+    return txt_path
+
+
+def _build_latex(
+    transcript: dict[str, Any],
+    title: str,
+    metadata: dict[str, Any],
+) -> str:
+    """Build the LaTeX document string."""
+    segments = transcript.get("segments", [])
+    full_text = transcript.get("full_text", "")
+    language = transcript.get("language", "en")
+    duration = metadata.get("duration", 0)
+    uploader = metadata.get("uploader", "Unknown")
+    url = metadata.get("url", "")
+
+    # Format duration
+    if duration:
+        mins, secs = divmod(int(duration), 60)
+        hrs, mins = divmod(mins, 60)
+        dur_str = f"{hrs}h {mins}m {secs}s" if hrs else f"{mins}m {secs}s"
+    else:
+        dur_str = "Unknown"
+
+    # Escape LaTeX special characters in content
+    safe_title = _latex_escape(title)
+    safe_uploader = _latex_escape(uploader)
+
+    # Build source row for title page (avoid backslash in f-string for Python 3.9)
+    source_row = r"\textbf{Source:} & \url{" + _latex_escape(url) + r"} \\" if url else ""
+
+    # Build segment content
+    if segments:
+        body = _format_segments(segments)
+    else:
+        body = _format_plain_text(full_text)
+
+    return rf"""\documentclass[11pt, a4paper]{{article}}
+
+\usepackage[utf8]{{inputenc}}
+\usepackage[T1]{{fontenc}}
+\usepackage{{lmodern}}
+\usepackage{{geometry}}
+\usepackage{{fancyhdr}}
+\usepackage{{xcolor}}
+\usepackage{{hyperref}}
+\usepackage{{amsmath, amssymb}}
+\usepackage{{microtype}}
+\usepackage{{titlesec}}
+
+\geometry{{margin=2.5cm}}
+\hypersetup{{
+    colorlinks=true,
+    linkcolor=blue!60!black,
+    urlcolor=blue!60!black,
+}}
+
+\definecolor{{timestamp}}{{RGB}}{{100, 100, 160}}
+\definecolor{{headerblue}}{{RGB}}{{30, 60, 120}}
+
+\pagestyle{{fancy}}
+\fancyhf{{}}
+\fancyhead[L]{{\small\textcolor{{headerblue}}{{{safe_title}}}}}
+\fancyhead[R]{{\small\thepage}}
+\fancyfoot[C]{{\small\textcolor{{gray}}{{Generated by ZuviScribe}}}}
+\renewcommand{{\headrulewidth}}{{0.4pt}}
+
+\titleformat{{\section}}{{\Large\bfseries\color{{headerblue}}}}{{}}{{0em}}{{}}
+
+\begin{{document}}
+
+% ── Title Page ──
+\begin{{titlepage}}
+\centering
+\vspace*{{3cm}}
+{{\Huge\bfseries\textcolor{{headerblue}}{{Video Transcript}}\par}}
+\vspace{{1cm}}
+{{\Large {safe_title}\par}}
+\vspace{{2cm}}
+\begin{{tabular}}{{r l}}
+\textbf{{Channel:}} & {safe_uploader} \\
+\textbf{{Duration:}} & {dur_str} \\
+\textbf{{Language:}} & {language.upper()} \\
+{source_row}
+\end{{tabular}}
+\vfill
+{{\small Generated by \textbf{{ZuviScribe}} --- Whisper transcription}}
+\end{{titlepage}}
+
+% ── Transcript ──
+\section*{{Transcript}}
+
+{body}
+
+\end{{document}}
+"""
+
+
+def _format_segments(segments: list[dict]) -> str:
+    """Format timestamped segments into LaTeX paragraphs."""
+    lines = []
+    current_paragraph: list[str] = []
+    last_end = 0.0
+
+    for seg in segments:
+        start = seg.get("start", 0.0)
+        text = seg.get("text", "").strip()
+        if not text:
+            continue
+
+        # Start a new paragraph if there's a significant gap (>3s)
+        if start - last_end > 3.0 and current_paragraph:
+            lines.append(" ".join(current_paragraph))
+            lines.append("")
+            current_paragraph = []
+
+        timestamp = _format_timestamp(start)
+        escaped = _latex_escape(text)
+
+        if not current_paragraph:
+            current_paragraph.append(
+                rf"{{\textcolor{{timestamp}}{{\scriptsize [{timestamp}]}}}} {escaped}"
+            )
+        else:
+            current_paragraph.append(escaped)
+
+        last_end = seg.get("end", start + 1.0)
+
+    if current_paragraph:
+        lines.append(" ".join(current_paragraph))
+
+    return "\n\n".join(lines)
+
+
+def _format_plain_text(text: str) -> str:
+    """Format plain text transcript (no timestamps)."""
+    paragraphs = text.split("\n\n")
+    if len(paragraphs) <= 1:
+        # Split by sentence boundaries for readability
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        paragraphs = []
+        chunk: list[str] = []
+        for s in sentences:
+            chunk.append(s)
+            if len(chunk) >= 4:
+                paragraphs.append(" ".join(chunk))
+                chunk = []
+        if chunk:
+            paragraphs.append(" ".join(chunk))
+
+    return "\n\n".join(_latex_escape(p) for p in paragraphs)
+
+
+def _format_timestamp(seconds: float) -> str:
+    """Format seconds as MM:SS."""
+    m, s = divmod(int(seconds), 60)
+    return f"{m:02d}:{s:02d}"
+
+
+def _latex_escape(text: str) -> str:
+    """Escape LaTeX special characters while preserving math-like content."""
+    # Preserve likely math expressions (e.g., $x^2$, $\sigma$)
+    # Only treat $...$ as math if the content looks like a math expression
+    # (contains letters, operators, etc.  not just numbers/currency)
+    def _is_math(content: str) -> bool:
+        """Return True if $...$ content looks like actual LaTeX math."""
+        # Currency like "$31" or "$500" is NOT math
+        if re.match(r'^\d[\d,\.]*$', content.strip()):
+            return False
+        # Short math-like: variables, operators, Greek letters
+        if re.search(r'[a-zA-Z\\^_{}]', content):
+            return True
+        return False
+
+    parts = re.split(r'(\$[^$]+\$)', text)
+    escaped_parts = []
+    for i, part in enumerate(parts):
+        if i % 2 == 1:
+            # Check if this $...$ is real math or just a dollar sign
+            inner = part[1:-1]
+            if _is_math(inner):
+                escaped_parts.append(part)
+            else:
+                # Escape the dollar signs and content as normal text
+                escaped_parts.append(_escape_plain(f"${inner}$"))
+        else:
+            escaped_parts.append(_escape_plain(part))
+    return "".join(escaped_parts)
+
+
+def _escape_plain(text: str) -> str:
+    """Escape LaTeX special chars and common Unicode in plain text."""
+    p = text
+    p = p.replace("\\", r"\textbackslash{}")
+    p = p.replace("&", r"\&")
+    p = p.replace("%", r"\%")
+    p = p.replace("$", r"\$")
+    p = p.replace("#", r"\#")
+    p = p.replace("_", r"\_")
+    p = p.replace("{", r"\{")
+    p = p.replace("}", r"\}")
+    p = p.replace("~", r"\textasciitilde{}")
+    p = p.replace("^", r"\textasciicircum{}")
+    # Common Unicode → LaTeX equivalents
+    p = p.replace("\u2014", "---")   # em-dash
+    p = p.replace("\u2013", "--")    # en-dash
+    p = p.replace("\u2018", "`")     # left single quote
+    p = p.replace("\u2019", "'")     # right single quote
+    p = p.replace("\u201c", "``")    # left double quote
+    p = p.replace("\u201d", "''")    # right double quote
+    p = p.replace("\u2026", "\ldots{}")  # ellipsis
+    return p

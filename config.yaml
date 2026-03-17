@@ -1,0 +1,87 @@
+# ──────────────────────────────────────────────
+# ZuviScribe Agent – Global Configuration
+# ──────────────────────────────────────────────
+
+project:
+  name: "ZuviScribe"
+  version: "0.1.0"
+  output_dir: "output"
+
+# ── Download ──────────────────────────────────
+downloader:
+  video_format: "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]"
+  frame_interval: 15         # extract 1 frame every N seconds
+  max_frames: 15             # safety cap – keeps pipeline fast
+
+# ── Transcription ─────────────────────────────
+transcriber:
+  model_name: "tiny"              # tiny | base | small | medium | large
+  language: null              # auto-detect if null
+  device: "cpu"              # cpu | cuda
+
+# ── Transcript Refinement (LLM post-processing) ──
+transcript_refiner:
+  enabled: true                    # set false to skip LLM refinement
+  model: "gemma2:27b"             # Ollama model for fixing ASR errors
+  ollama_host: "http://localhost:11434"
+
+# ── Concept Extraction ────────────────────────
+concept_extractor:
+  model: "llava:7b"          # Ollama vision model (LLaVA for image understanding)
+  ollama_host: "http://localhost:11434"
+  max_concepts_per_frame: 5
+
+# ── Storyboard Generator ─────────────────────
+storyboard:
+  model: "gemma2:27b"        # Gemma 2 27B – excellent creative writing for scripts
+  ollama_host: "http://localhost:11434"
+  min_scenes: 6
+  max_scenes: 10
+  style: "cinematic documentary with 3D motion graphics, dark background, volumetric lighting"
+
+# ── Narration TTS ─────────────────────────────
+narration:
+  voice: "en-US-ChristopherNeural"   # Authoritative news/documentary voice
+
+# ── Image Renderer (SDXL via HuggingFace diffusers) ─────
+image_renderer:
+  model: "stabilityai/sdxl-turbo"     # HuggingFace model ID  fast, high quality
+  width: 1024
+  height: 576
+  steps: 6              # More steps = better quality (SDXL-Turbo handles 1-8)
+  cfg_scale: 0.0        # SDXL-Turbo works best with guidance_scale=0
+  variants_per_scene: 3  # 3 image variants per scene (wide, detail, abstract)
+  negative_prompt: "blurry, low quality, watermark, text, words, letters, ugly, deformed, amateur"
+
+# ── Background Music ──────────────────────────
+music:
+  enabled: true
+  volume: 0.12           # Background music volume (0.0-1.0, relative to narration)
+
+# ── Animation Engine ──────────────────────────
+animation:
+  method: "img2vid"          # img2vid = enhanced Ken Burns on SDXL images (proper duration)
+  frames_per_scene: 72
+  fps: 24
+  motion_strength: 0.6
+
+# ── Audio Synthesis ───────────────────────────
+audio_synth:
+  engine: "original"         # coqui | original (original splits source audio, no TTS needed)
+  coqui_model: "tts_models/en/ljspeech/tacotron2-DDC"
+  sample_rate: 22050
+
+# ── Video Assembly ────────────────────────────
+video_assembly:
+  use_blender: false
+  transition: "crossfade"      # crossfade between scenes
+  transition_dur: 0.8          # seconds
+  codec: "libx264"
+  crf: 18
+
+# ── Uploader ──────────────────────────────────
+uploader:
+  platform: "youtube"
+  credentials_file: "client_secrets.json"
+  default_privacy: "private"  # private | unlisted | public
+  category_id: "22"           # People & Blogs
